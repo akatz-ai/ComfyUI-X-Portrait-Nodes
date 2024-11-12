@@ -4,29 +4,17 @@
 # ytedance Inc..  
 # *************************************************************************
 
-import sys
-import os
-
-# Add the project root to Python path
-# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 import argparse
 import numpy as np
 # torch
 import torch
-from ema_pytorch import EMA
 from einops import rearrange
 import cv2
-# utils
-# model
-from model_lib.ControlNet.cldm.model import create_model
-from model_lib.utils.utils import set_seed, count_param, print_peak_memory
+from model_lib.utils.utils import set_seed
 import copy
 from skimage.transform import resize
 from skimage import img_as_ubyte
 import face_alignment
-from decord import VideoReader
-from decord import cpu, gpu
 
 
 TORCH_VERSION = torch.__version__.split(".")[0]

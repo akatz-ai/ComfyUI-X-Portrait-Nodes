@@ -1,5 +1,4 @@
 numpy
-ema-pytorch
 einops
 opencv-python
 matplotlib
@@ -7,7 +6,6 @@ imageio
 omegaconf
 scikit-image
 face-alignment
-decord
 torchvision
 diffusers
 pytorch-lightning
