@@ -8,7 +8,7 @@ import sys
 import os
 
 # Add the project root to Python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import argparse
 import numpy as np
@@ -18,13 +18,10 @@ from ema_pytorch import EMA
 from einops import rearrange
 import cv2
 # utils
-from utils.utils import set_seed, count_param, print_peak_memory
 # model
-import imageio
 from model_lib.ControlNet.cldm.model import create_model
+from model_lib.utils.utils import set_seed, count_param, print_peak_memory
 import copy
-import glob
-import imageio
 from skimage.transform import resize
 from skimage import img_as_ubyte
 import face_alignment
@@ -146,49 +143,40 @@ def adjust_driving_video_to_src_image(source_image, driving_video, fa, nm_res, n
     
     return adjusted_driving_video, adjusted_driving_video_hd
 
-def x_portrait_data_prep(source_image_path, driving_video_path, device, best_frame_id=0, start_idx = 0, num_frames=0, skip=1, output_local=False, more_source_image_pattern="", target_resolution = 512):
-    source_image = imageio.imread(source_image_path)
-    if '.mp4' in driving_video_path:
-        reader = imageio.get_reader(driving_video_path)
-        fps = reader.get_meta_data()['fps']
-        driving_video = []
-        try:
-            for im in reader:
-                driving_video.append(im)
-        except RuntimeError:
-            pass
-        reader.close()
-    else:
-        driving_video = [imageio.imread(driving_video_path)[...,:3]]
-        fps = 1
+def x_portrait_data_prep(source_image_tensor, driving_video_tensor, device, best_frame_id=0, start_idx=0, num_frames=0, skip=1, output_local=False, more_source_image_pattern="", target_resolution=512, fps=1):
+    # Assume source_image_tensor is of shape [B, H, W, C] with values from 0 to 1 type float
+    # Assume driving_video_tensor is of shape [B, H, W, C] with values from 0 to 1 type float
+    # we need to convert the source image tensor to a numpy array of shape [H, W, C] with values from 0 to 255 type uint8
+    source_image = (source_image_tensor.squeeze(0).detach().cpu().numpy() * 255).astype(np.uint8)
+    
+    # Convert the driving video tensor to a list of numpy arrays each of shape [H, W, C] with values from 0 to 255 type uint8
+    driving_video = [
+        (frame.detach().cpu().numpy() * 255).astype(np.uint8)
+        for frame in driving_video_tensor
+    ]
 
     nmd_res = target_resolution
     nm_res = 256
     source_image_hd = resize(source_image, (nmd_res, nmd_res))[..., :3]
 
-    if more_source_image_pattern:
-        more_source_paths = glob.glob(more_source_image_pattern)
-        more_sources_hd = []
-        for more_source_path in more_source_paths:
-            more_source_image = imageio.imread(more_source_path)
-            more_source_image_hd = resize(more_source_image, (nmd_res, nmd_res))[..., :3]
-            more_source_hd = torch.tensor(more_source_image_hd[np.newaxis].astype(np.float32)).permute(0, 3, 1, 2)
-            more_source_hd = more_source_hd.to(device)
-            more_sources_hd.append(more_source_hd)
-        more_sources_hd = torch.stack(more_sources_hd, dim = 1) 
-    else:
-        more_sources_hd = None
-
     fa = face_alignment.FaceAlignment(face_alignment.LandmarksType.TWO_D, flip_input=True, device='cuda')
 
-    driving_video, driving_video_hd = adjust_driving_video_to_src_image(source_image, driving_video, fa, nm_res, nmd_res, best_frame_id)
+    # Adjust driving video to source image
+    driving_video, driving_video_hd = adjust_driving_video_to_src_image(
+        source_image,  # Use the first image in the batch as the source
+        driving_video,
+        fa,
+        nm_res,
+        nmd_res,
+        best_frame_id
+    )
 
     if num_frames == 0:
         end_idx = len(driving_video)
     else:
         num_frames = min(len(driving_video), num_frames)
         end_idx = start_idx + num_frames * skip
-    
+
     driving_video = driving_video[start_idx:end_idx][::skip]
     driving_video_hd = driving_video_hd[start_idx:end_idx][::skip]
     num_frames = len(driving_video)
@@ -200,27 +188,23 @@ def x_portrait_data_prep(source_image_path, driving_video_path, device, best_fra
         driving_hd = torch.tensor(np.array(driving_video_hd).astype(np.float32)).permute(0, 3, 1, 2).to(device)
 
         local_features = []
-        raw_drivings=[]
+        raw_drivings = []
 
         for frame_idx in range(0, num_frames):
             raw_drivings.append(driving_hd[frame_idx:frame_idx+1] * 2 - 1.)
             if output_local:
-                local_feature_img = extract_local_feature_from_single_img(driving_hd[frame_idx], fa,target_res=nmd_res)
+                local_feature_img = extract_local_feature_from_single_img(driving_hd[frame_idx], fa, target_res=nmd_res)
                 local_features.append(local_feature_img)
 
-
     batch_data = {}
-    batch_data['fps'] = fps
+    # batch_data['fps'] = fps
     real_source_hd = real_source_hd * 2 - 1
-    batch_data['sources'] = real_source_hd[:, None, :, :, :].repeat([num_frames, 1, 1, 1, 1]) 
-    if more_sources_hd is not None:
-        more_sources_hd = more_sources_hd * 2 - 1
-        batch_data['more_sources'] = more_sources_hd.repeat([num_frames, 1, 1, 1, 1])
+    batch_data['sources'] = real_source_hd[:, None, :, :, :].repeat([num_frames, 1, 1, 1, 1])
 
-    raw_drivings = torch.stack(raw_drivings, dim = 0)
+    raw_drivings = torch.stack(raw_drivings, dim=0)
     batch_data['conditions'] = raw_drivings
     if output_local:
-        batch_data['local'] = torch.stack(local_features, dim = 0)
+        batch_data['local'] = torch.stack(local_features, dim=0)
 
     return batch_data
 
@@ -266,18 +250,16 @@ def get_cond_control(args, batch_data, control_type, device, start, end, model=N
         raise NotImplementedError(f"cond_type={control_type} not supported!")
 
 def visualize_mm(args, name, batch_data, infer_model, nSample, local_image_dir, num_mix=4, preset_output_name=''):
-    driving_video_name = os.path.basename(batch_data['video_name']).split('.')[0]
-    source_name = os.path.basename(batch_data['source_name']).split('.')[0]
 
-    if not os.path.exists(local_image_dir):
-        os.mkdir(local_image_dir)
+    # if not os.path.exists(local_image_dir):
+    #     os.mkdir(local_image_dir)
 
     uc_scale = args.uc_scale
-    if preset_output_name:
-        preset_output_name = preset_output_name.split('.')[0]+'.mp4'
-        output_path = f"{local_image_dir}/{preset_output_name}"
-    else:
-        output_path = f"{local_image_dir}/{name}_{args.control_type}_uc{uc_scale}_{source_name}_by_{driving_video_name}_mix{num_mix}.mp4"
+    # if preset_output_name:
+    #     preset_output_name = preset_output_name.split('.')[0]+'.mp4'
+    #     output_path = f"{local_image_dir}/{preset_output_name}"
+    # else:
+    #     output_path = f"{local_image_dir}/{name}_{args.control_type}_uc{uc_scale}_{source_name}_by_{driving_video_name}_mix{num_mix}.mp4"
 
     infer_model.eval()
 
@@ -287,31 +269,19 @@ def visualize_mm(args, name, batch_data, infer_model, nSample, local_image_dir, 
 
     vae_bs = 1
 
-    if args.initial_facevid2vid_results:
-        facevid2vid = []
-        facevid2vid_results = VideoReader(args.initial_facevid2vid_results, ctx=cpu(0))
-        for frame_id in range(len(facevid2vid_results)):
-            frame = cv2.resize(facevid2vid_results[frame_id].asnumpy(),(512,512)) / 255
-            facevid2vid.append(torch.from_numpy(frame * 2 - 1).permute(2,0,1))
-        cond = torch.stack(facevid2vid)[:nSample].float().to(args.device)
-        pre_noise=[]
-        for i in range(0, nSample, vae_bs):
-            pre_noise.append(infer_model.get_first_stage_encoding(infer_model.encode_first_stage(cond[i:i+vae_bs])))
-        pre_noise = torch.cat(pre_noise, dim=0)
-        pre_noise = infer_model.q_sample(x_start = pre_noise, t = torch.tensor([999]).to(pre_noise.device))
-    else:
-        cond = batch_data['sources'][:nSample].reshape([-1, ch, h, w])
-        pre_noise=[]
-        infer_model.first_stage_model.to(args.local_rank)
-        for i in range(0, nSample, vae_bs):
-            pre_noise.append(infer_model.get_first_stage_encoding(infer_model.encode_first_stage(cond[i:i+vae_bs])))
-        
-        pre_noise = torch.cat(pre_noise, dim=0)
-        
-        infer_model.sqrt_alphas_cumprod = infer_model.sqrt_alphas_cumprod.to(0)
-        infer_model.sqrt_one_minus_alphas_cumprod = infer_model.sqrt_one_minus_alphas_cumprod.to(0)
-        
-        pre_noise = infer_model.q_sample(x_start = pre_noise, t = torch.tensor([999]).to(pre_noise.device))
+
+    cond = batch_data['sources'][:nSample].reshape([-1, ch, h, w])
+    pre_noise=[]
+    infer_model.first_stage_model.to(args.local_rank)
+    for i in range(0, nSample, vae_bs):
+        pre_noise.append(infer_model.get_first_stage_encoding(infer_model.encode_first_stage(cond[i:i+vae_bs])))
+    
+    pre_noise = torch.cat(pre_noise, dim=0)
+    
+    infer_model.sqrt_alphas_cumprod = infer_model.sqrt_alphas_cumprod.to(0)
+    infer_model.sqrt_one_minus_alphas_cumprod = infer_model.sqrt_one_minus_alphas_cumprod.to(0)
+    
+    pre_noise = infer_model.q_sample(x_start = pre_noise, t = torch.tensor([999]).to(pre_noise.device))
 
 
     # infer_model.cond_stage_model.to(args.local_rank) # FrozenCLIPEmbedder
@@ -417,8 +387,14 @@ def visualize_mm(args, name, batch_data, infer_model, nSample, local_image_dir, 
     output_img = torch.permute(output_img, [0, 2, 3, 1])
     
     output_img = output_img.data.cpu().numpy()
-    output_img = img_as_ubyte(output_img)
+    print(f"Output image shape: {output_img.shape}")
+    print(f"Output image data peek: {output_img[:5, :5, :]}")
+    # output_img = img_as_ubyte(output_img)
     output_img = torch.from_numpy(output_img)
+    print(f"Output image shape: {output_img.shape}")
+    output_img = output_img[:,:,:512]
+    print(f"Output image shape: {output_img.shape}")
+    # print(f"Output image data peek: {output_img[:5, :5, :]}")
     # imageio.mimsave(output_path, output_img[:,:,:512], fps=batch_data['fps'], quality=10, pixelformat='yuv420p', codec='libx264')
 
     # After processing, clear any large temporary variables
@@ -444,16 +420,13 @@ def main(args, infer_model):
     output_videos = []
 
     with torch.no_grad():
-        driving_videos = glob.glob(args.driving_video)
-        for driving_video in driving_videos:
-            print ('working on {}'.format(os.path.basename(driving_video)))
-            infer_batch_data = x_portrait_data_prep(args.source_image, driving_video, args.device, args.best_frame, start_idx = args.start_idx, num_frames = args.out_frames, skip=args.skip, output_local=True)
-            infer_batch_data['video_name'] = os.path.basename(driving_video)
-            infer_batch_data['source_name'] = args.source_image
-            nSample = infer_batch_data['sources'].shape[0]
-            output_videos.append(visualize_mm(args, "inference", infer_batch_data, infer_model, nSample=nSample, local_image_dir=args.output_dir, num_mix=args.num_mix))
+        infer_batch_data = x_portrait_data_prep(args.source_image, args.driving_video, args.device, args.best_frame, start_idx = args.start_idx, num_frames = args.out_frames, skip=args.skip, output_local=True)
+        # infer_batch_data['video_name'] = os.path.basename(args.driving_video)
+        # infer_batch_data['source_name'] = args.source_image
+        nSample = infer_batch_data['sources'].shape[0]
+        output_videos.append(visualize_mm(args, "inference", infer_batch_data, infer_model, nSample=nSample, local_image_dir=args.output_dir, num_mix=args.num_mix))
 
-    return output_videos
+    return output_videos[0]
 
 
 if __name__ == "__main__":
