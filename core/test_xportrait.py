@@ -418,13 +418,17 @@ def visualize_mm(args, name, batch_data, infer_model, nSample, local_image_dir, 
     
     output_img = output_img.data.cpu().numpy()
     output_img = img_as_ubyte(output_img)
-    imageio.mimsave(output_path, output_img[:,:,:512], fps=batch_data['fps'], quality=10, pixelformat='yuv420p', codec='libx264')
+    output_img = torch.from_numpy(output_img)
+    # imageio.mimsave(output_path, output_img[:,:,:512], fps=batch_data['fps'], quality=10, pixelformat='yuv420p', codec='libx264')
 
     # After processing, clear any large temporary variables
     del cond_img_cat, pose_cond_list, local_pose_cond_list
     torch.cuda.empty_cache()  # Clear unused memory
+    
+    return output_img
 
-def main(args):
+
+def main(args, infer_model):
     
     # ******************************
     # initialize training
@@ -437,48 +441,7 @@ def main(args):
     # set seed for reproducibility
     set_seed(args.seed)
 
-    # ******************************
-    # create model
-    # ******************************
-    model = create_model(args.model_config).cpu()
-    model.sd_locked = args.sd_locked
-    model.only_mid_control = args.only_mid_control
-    # model.to(args.local_rank)
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-    if args.local_rank == 0:
-        print('Total base  parameters {:.02f}M'.format(count_param([model])))
-    if args.ema_rate is not None and args.ema_rate > 0 and args.rank == 0:
-        print(f"Creating EMA model at ema_rate={args.ema_rate}")
-        model_ema = EMA(model, beta=args.ema_rate, update_after_step=0, update_every=1)
-    else:
-        model_ema = None
-        
-    # model = torch.quantization.quantize_dynamic(
-    #     model,  # the model to quantize
-    #     {torch.nn.Linear, torch.nn.Conv2d},  # layers to quantize
-    #     dtype=torch.qint8  # quantized data type
-    # )
-
-    # ******************************
-    # load pre-trained models
-    # ******************************
-    if args.resume_dir is not None:
-        if args.local_rank == 0:
-            load_state_dict(model, args.resume_dir, strict=False)
-    else:
-        print('please privide the correct resume_dir!')
-        exit()
-    
-    # ******************************
-    # create DDP model
-    # ******************************
-    # if args.compile and TORCH_VERSION == "2":
-    #     model = torch.compile(model)
-    
-    torch.cuda.set_device(args.local_rank)
-    print_peak_memory("Max memory allocated after creating DDP", args.local_rank)
-    infer_model = model.module if hasattr(model, "module") else model
+    output_videos = []
 
     with torch.no_grad():
         driving_videos = glob.glob(args.driving_video)
@@ -488,7 +451,9 @@ def main(args):
             infer_batch_data['video_name'] = os.path.basename(driving_video)
             infer_batch_data['source_name'] = args.source_image
             nSample = infer_batch_data['sources'].shape[0]
-            visualize_mm(args, "inference", infer_batch_data, infer_model, nSample=nSample, local_image_dir=args.output_dir, num_mix=args.num_mix)
+            output_videos.append(visualize_mm(args, "inference", infer_batch_data, infer_model, nSample=nSample, local_image_dir=args.output_dir, num_mix=args.num_mix))
+
+    return output_videos
 
 
 if __name__ == "__main__":
@@ -496,7 +461,7 @@ if __name__ == "__main__":
     str2bool = lambda arg: bool(int(arg))
     parser = argparse.ArgumentParser(description='Control Net training')
     ## Model
-    parser.add_argument('--model_config', type=str, default="model_lib/ControlNet/models/cldm_v15_video_appearance.yaml",
+    parser.add_argument('--model_config', type=str, default="config/cldm_v15_appearance_pose_local_mm.yaml",
                         help="The path of model config file")
     parser.add_argument('--reinit_hint_block', action='store_true', default=False,
                         help="Re-initialize hint blocks for channel mis-match")
