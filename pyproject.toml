@@ -1,0 +1,15 @@
+[project]
+name = "comfyui-x-portrait-nodes"
+description = "Implementation of X-Portrait nodes for ComfyUI, animate portraits with an input video and a reference image."
+version = "1.0.0"
+license = {file = "LICENSE"}
+dependencies = ["torch", "diffusers>=0.29.1", "xformers"]
+
+[project.urls]
+Repository = "https://github.com/akatz-ai/ComfyUI-X-Portrait-Nodes"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = "akatz"
+DisplayName = "ComfyUI-X-Portrait-Nodes"
+Icon = "https://i.imgur.com/aiqQI7U.png"

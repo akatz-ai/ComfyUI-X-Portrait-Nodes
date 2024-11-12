@@ -1,0 +1,6 @@
+venv/
+**/*.pyc
+checkpoint/
+outputs/
+.vscode/
+assets/
