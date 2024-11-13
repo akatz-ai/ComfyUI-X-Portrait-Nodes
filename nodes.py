@@ -126,7 +126,7 @@ class XPortrait(BaseNode):
                 "seed": ("INT", {"default": 999}),
                 "ddim_steps": ("INT", {"default": 15}),
                 "cfg_scale": ("FLOAT", {"default": 5.0}),
-                "best_frame": ("INT", {"default": 36}),
+                "best_frame": ("INT", {"default": 0}),
                 "context_window": ("INT", {"default": 16}),
                 "overlap": ("INT", {"default": 4}),
             }
