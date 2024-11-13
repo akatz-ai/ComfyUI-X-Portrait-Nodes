@@ -8,8 +8,8 @@
 from .nodes import DownloadXPortraitModel, XPortrait
 
 NODE_CONFIG = {
-  "DownloadXPortraitModel": {"class": DownloadXPortraitModel, "name": "(Down)loadXPortraitModel"},
-  "XPortrait": {"class": XPortrait, "name": "XPortrait"},
+  "DownloadXPortraitModel": {"class": DownloadXPortraitModel, "name": "(Down)load X-Portrait Model"},
+  "XPortrait": {"class": XPortrait, "name": "X-Portrait"},
 }
 
 def generate_node_mappings(node_config):

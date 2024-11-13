@@ -1,50 +1,27 @@
+import argparse
 import os
-from comfy.utils import ProgressBar
-import folder_paths
+import numpy as np
 import torch
 
 import sys
-# sys.path.append(os.path.join(folder_paths.base_path, "custom_nodes", "ComfyUI-X-Portrait-Nodes"))
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_file_dir))
 
 from model_lib.ControlNet.cldm.model import create_model
 from core.test_xportrait import main as xportrait_main
 
+from PIL import Image
+from decord import VideoReader
+from decord import cpu, gpu
 
 class Args:
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
-
-class BaseNode:
-    def __init__(self):
-        self.progress_bar = None
-
-    def start_progress(self, total_steps, desc="Processing"):
-        self.progress_bar = ProgressBar(total_steps)
-
-    def update_progress(self, *args, **kwargs):
-        if self.progress_bar:
-            self.progress_bar.update(1)
-
-    def end_progress(self):
-        self.progress_bar = None
-        
-    CATEGORY = "X-Portrait"
     
-class DownloadXPortraitModel(BaseNode):
+class DownloadXPortraitModel():
     def __init__(self):
         super().__init__()
         self.model_config = os.path.join(current_file_dir, "config", "cldm_v15_appearance_pose_local_mm.yaml")
-        
-    @classmethod
-    def INPUT_TYPES(s):
-        return {}
-    
-    RETURN_TYPES = ("XPORTRAIT_MODEL",)
-    RETURN_NAMES = ("model",)
-    FUNCTION = "load_model"
-    DESCRIPTION = "Downloads and loads the X-Portrait model"
     
     def load_state_dict(self, model, ckpt_path, reinit_hint_block=False, strict=True, map_location="cpu"):
         print(f"Loading model state dict from {ckpt_path} ...")
@@ -61,10 +38,11 @@ class DownloadXPortraitModel(BaseNode):
         model.load_state_dict(state_dict, strict=strict)
         del state_dict
       
-    def load_model(self):
-        model_dir = os.path.join(folder_paths.models_dir, "x-portrait")
+    def load_model(self, model_dir=None):
         model_file = "model_state-415001.th"
         model_path = os.path.join(model_dir, model_file)
+        
+        print(f"Model path: {model_path}")
         
         if not os.path.exists(model_path):
             print(f"Downloading model to: {model_dir}")
@@ -112,37 +90,11 @@ class DownloadXPortraitModel(BaseNode):
 # --num_drivings 16 \
     
     
-class XPortrait(BaseNode):
+class XPortrait():
     def __init__(self):
         super().__init__()
-        
-    @classmethod
-    def INPUT_TYPES(s):
-        return {
-            "required": {
-                "xportrait_model": ("XPORTRAIT_MODEL", {"forceInput": True}),
-                "source_image": ("IMAGE",),
-                "driving_video": ("IMAGE",),
-                "seed": ("INT", {"default": 999}),
-                "ddim_steps": ("INT", {"default": 15}),
-                "cfg_scale": ("FLOAT", {"default": 5.0}),
-                "best_frame": ("INT", {"default": 36}),
-                "context_window": ("INT", {"default": 16}),
-                "overlap": ("INT", {"default": 4}),
-            }
-        }
     
-    RETURN_TYPES = ("IMAGE",)
-    RETURN_NAMES = ("image",)
-    FUNCTION = "generate"
-    DESCRIPTION = "Generates a video from the X-Portrait model"
-    
-    def generate(self, xportrait_model, source_image, driving_video, seed, ddim_steps, cfg_scale, best_frame, context_window, overlap):
-        print(f"Source image shape: {source_image.shape}")
-        print(f"Source image data type: {source_image.dtype}")
-        # image is a tensor with shape [B, H, W, C]
-        print(f"Source image data peek: {source_image[0, :, :, :10]}")
-        print(f"Driving video shape: {driving_video.shape}")
+    def generate(self, xportrait_model, source_image, driving_video, seed=999, ddim_steps=5, cfg_scale=5.0, best_frame=36, context_window=16, overlap=4, fps=15):
         args = Args(
             seed=seed,
             uc_scale=cfg_scale,
@@ -153,6 +105,7 @@ class XPortrait(BaseNode):
             num_drivings=context_window,
             num_mix=overlap,
             ddim_steps=ddim_steps,
+            fps=fps,
             start_idx=0,
             skip=1,
             use_fp16=True,
@@ -170,6 +123,43 @@ class XPortrait(BaseNode):
             rank=0,
             ema_rate=0,
         )
-        output_video = xportrait_main(args, xportrait_model)
-        return (output_video,)
+        output_videos = xportrait_main(args, xportrait_model)
+        print(f"Output videos: {output_videos}")
+        print(f"Output videos type: {type(output_videos)}")
+        return (output_videos[0],)
     
+if __name__ == "__main__":
+    # Get path to models folder from argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--models-dir", type=str, default=None)
+    parser.add_argument("--source-image-path", type=str, default=None)
+    parser.add_argument("--driving-video-path", type=str, default=None)
+    args = parser.parse_args()
+
+    # Load image and video from assets files into tensors with shape [B, H, W, C]
+    source_image = Image.open(args.source_image_path)
+
+    # Convert image to a tensor with shape [B, H, W, C] of dtype float32 and values from 0 to 1
+    source_image = torch.from_numpy(np.array(source_image)).float() / 255.0
+    source_image = source_image.unsqueeze(0)  # Add batch dimension
+    print(f"Source image shape: {source_image.shape}")
+    print(f"Source image data peek: {source_image.view(-1)[:10]}")  # Flatten for data peek
+
+    # Read video frames and convert to a tensor
+    video_reader = VideoReader(args.driving_video_path, ctx=cpu(0))
+    
+    # Assuming VideoReader provides an iterable of frames
+    frames = []
+    for i in range(len(video_reader)):
+        frame = video_reader[i].asnumpy()
+        # frames are in [H, W, C] format and values from 0 to 255, we need to convert to [B, H, W, C]
+        frame = torch.from_numpy(frame).float() / 255.0
+        frame = frame.unsqueeze(0)  # Add batch dimension
+        frames.append(frame)
+
+    driving_video = torch.cat(frames, dim=0)
+    print(f"Driving video shape: {driving_video.shape}")
+
+    xportrait_model = DownloadXPortraitModel().load_model(model_dir=args.models_dir)
+    xportrait = XPortrait()
+    xportrait.generate(xportrait_model, source_image, driving_video)
