@@ -401,6 +401,9 @@ def main(args, infer_model):
     args.local_rank = 0
     args.rank = 0
     args.device = torch.device("cuda", args.local_rank)
+    
+    # move model to cpu in case it's not already
+    infer_model.to("cpu")
 
     # set seed for reproducibility
     set_seed(args.seed)
