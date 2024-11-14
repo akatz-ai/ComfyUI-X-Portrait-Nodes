@@ -1,9 +1,26 @@
 [project]
 name = "comfyui-x-portrait-nodes"
 description = "Implementation of X-Portrait nodes for ComfyUI, animate portraits with an input video and a reference image."
-version = "1.0.0"
+version = "1.1.0"
 license = {file = "LICENSE"}
-dependencies = ["torch", "diffusers>=0.29.1", "xformers"]
+dependencies = [
+    "numpy",
+    "einops",
+    "opencv-python",
+    "matplotlib",
+    "imageio",
+    "omegaconf",
+    "scikit-image",
+    "face-alignment",
+    "torchvision",
+    "diffusers",
+    "pytorch-lightning",
+    "xformers",
+    "sageattention",
+    "transformers",
+    "open-clip-torch",
+    "imageio[ffmpeg]"
+]
 
 [project.urls]
 Repository = "https://github.com/akatz-ai/ComfyUI-X-Portrait-Nodes"
