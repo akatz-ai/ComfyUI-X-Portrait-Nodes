@@ -2,6 +2,20 @@
 
 **Animate portraits with an input video and a reference image using X-Portrait in ComfyUI.**
 
+[Original X-Portrait Repo](https://github.com/bytedance/X-Portrait)
+
+<img src="assets/x-portrait-nodes.png" alt="x-portrait nodes" width="400"/>
+
+- source_image: the reference image for generation, should be square and max 512x512.
+- driving_video: the driving video containing a face, should match the resolution of the source_image and max 512x512.
+- seed: controls current generation seed
+- ddim_steps: how many samples (steps) for generating the output. Diminishing returns after 15.
+- best_frame: which frame of the driving_video most closely matches the source_image.
+
+## ⭐ Example Workflow (in examples/)
+
+![Example workflow 1](assets/x-portrait-workflow.png)
+
 ## 🔧 Installation and Usage
 
 1. ComfyUI Manager:

@@ -375,15 +375,8 @@ def visualize_mm(args, name, batch_data, infer_model, nSample, local_image_dir, 
     output_img = torch.permute(output_img, [0, 2, 3, 1])
     
     output_img = output_img.data.cpu().numpy()
-    print(f"Output image shape: {output_img.shape}")
-    print(f"Output image data peek: {output_img[:5, :5, :]}")
-    # output_img = img_as_ubyte(output_img)
     output_img = torch.from_numpy(output_img)
-    print(f"Output image shape: {output_img.shape}")
     output_img = output_img[:,:,:512]
-    print(f"Output image shape: {output_img.shape}")
-    # print(f"Output image data peek: {output_img[:5, :5, :]}")
-    # imageio.mimsave(output_path, output_img[:,:,:512], fps=batch_data['fps'], quality=10, pixelformat='yuv420p', codec='libx264')
 
     # After processing, clear any large temporary variables
     del cond_img_cat, pose_cond_list, local_pose_cond_list

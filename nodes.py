@@ -125,10 +125,7 @@ class XPortrait(BaseNode):
                 "driving_video": ("IMAGE",),
                 "seed": ("INT", {"default": 999}),
                 "ddim_steps": ("INT", {"default": 15}),
-                "cfg_scale": ("FLOAT", {"default": 5.0}),
-                "best_frame": ("INT", {"default": 36}),
-                "context_window": ("INT", {"default": 16}),
-                "overlap": ("INT", {"default": 4}),
+                "best_frame": ("INT", {"default": 0}),
             }
         }
     
@@ -137,21 +134,17 @@ class XPortrait(BaseNode):
     FUNCTION = "generate"
     DESCRIPTION = "Generates a video from the X-Portrait model"
     
-    def generate(self, xportrait_model, source_image, driving_video, seed, ddim_steps, cfg_scale, best_frame, context_window, overlap):
-        print(f"Source image shape: {source_image.shape}")
-        print(f"Source image data type: {source_image.dtype}")
+    def generate(self, xportrait_model, source_image, driving_video, seed, ddim_steps, best_frame):
         # image is a tensor with shape [B, H, W, C]
-        print(f"Source image data peek: {source_image[0, :, :, :10]}")
-        print(f"Driving video shape: {driving_video.shape}")
         args = Args(
             seed=seed,
-            uc_scale=cfg_scale,
+            uc_scale=5.0,
             source_image=source_image,
             driving_video=driving_video,
             best_frame=best_frame,
             out_frames=-1,
-            num_drivings=context_window,
-            num_mix=overlap,
+            num_drivings=16,
+            num_mix=4,
             ddim_steps=ddim_steps,
             start_idx=0,
             skip=1,
