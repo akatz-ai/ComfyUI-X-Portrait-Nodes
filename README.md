@@ -2,6 +2,14 @@
 
 **Animate portraits with an input video and a reference image using X-Portrait in ComfyUI.**
 
+[Original X-Portrait Repo](https://github.com/bytedance/X-Portrait)
+
+<img src="assets/x-portrait-nodes.png" alt="x-portrait nodes" width="400"/>
+
+## ⭐ Example Workflow (in examples/)
+
+![Example workflow 1](assets/x-portrait-workflow.png)
+
 ## 🔧 Installation and Usage
 
 1. ComfyUI Manager:
