@@ -14,3 +14,4 @@ sageattention
 transformers
 open-clip-torch
 imageio[ffmpeg]
+triton
