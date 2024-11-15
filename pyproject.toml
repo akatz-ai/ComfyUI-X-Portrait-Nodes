@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-x-portrait-nodes"
 description = "Implementation of X-Portrait nodes for ComfyUI, animate portraits with an input video and a reference image."
-version = "1.1.0"
+version = "1.1.1"
 license = {file = "LICENSE"}
 dependencies = [
     "numpy",
@@ -19,7 +19,8 @@ dependencies = [
     "sageattention",
     "transformers",
     "open-clip-torch",
-    "imageio[ffmpeg]"
+    "imageio[ffmpeg]",
+    "triton"
 ]
 
 [project.urls]
