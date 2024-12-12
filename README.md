@@ -12,6 +12,14 @@
 - ddim_steps: how many samples (steps) for generating the output. Diminishing returns after 15.
 - best_frame: which frame of the driving_video most closely matches the source_image.
 
+## 🖥️ Custom Environment
+I created a custom ComfyUI environment for testing out X-Portrait nodes:
+
+**akatzai/comfy-env-xportrait:0.0.1**
+
+Create a new environment and copy and paste the link above into the "Custom Image" field in my Environment Manager tool:
+https://github.com/akatz-ai/ComfyUI-Environment-Manager
+
 ## ⭐ Example Workflow (in examples/)
 
 ![Example workflow 1](assets/x-portrait-workflow.png)
