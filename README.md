@@ -20,6 +20,8 @@ I created a custom ComfyUI environment for testing out X-Portrait nodes:
 Create a new environment and copy and paste the link above into the "Custom Image" field in my Environment Manager tool:
 https://github.com/akatz-ai/ComfyUI-Environment-Manager
 
+Make sure to select the **Basic** environment type to access the included workflow!
+
 ## ⭐ Example Workflow (in examples/)
 
 ![Example workflow 1](assets/x-portrait-workflow.png)
